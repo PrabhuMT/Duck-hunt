@@ -1,0 +1,1197 @@
+<!-- ==============================
+     RETRO DUCK HUNT GAME
+     ============================== -->
+
+<div id="duckHuntGame">
+    <canvas id="duckHuntCanvas"></canvas>
+
+    <div class="dh-ui">
+        <div>
+            SCORE
+            <strong id="dhScore">00000</strong>
+        </div>
+
+        <div>
+            SHOTS
+            <strong id="dhShots">3</strong>
+        </div>
+    </div>
+
+    <div id="dhStartScreen" class="dh-screen">
+        <div class="dh-title">DUCK<br>HUNT</div>
+        <div class="dh-start-text">TAP TO START</div>
+    </div>
+
+    <div id="dhGameOver" class="dh-screen">
+        <div class="dh-title">GAME OVER</div>
+
+        <div class="dh-final">
+            SCORE: <span id="dhFinalScore">00000</span>
+        </div>
+
+        <button id="dhRestart">
+            PLAY AGAIN
+        </button>
+    </div>
+</div>
+
+<style>
+
+/* =================================
+   GAME CONTAINER
+================================= */
+
+#duckHuntGame {
+
+    --dh-size: 300px;
+
+    position: relative;
+
+    width: var(--dh-size);
+    height: var(--dh-size);
+
+    margin: 20px auto;
+
+    overflow: hidden;
+
+    border-radius: 50%;
+
+    background: #70c850;
+
+    border: 6px solid #222;
+
+    box-shadow:
+        0 0 0 4px #111,
+        0 12px 30px rgba(0,0,0,.4);
+
+    font-family:
+        "Courier New",
+        monospace;
+
+    user-select: none;
+    -webkit-user-select: none;
+
+    touch-action: none;
+
+    image-rendering: pixelated;
+}
+
+/* =================================
+   CANVAS
+================================= */
+
+#duckHuntCanvas {
+
+    position: absolute;
+
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    display: block;
+
+    cursor: crosshair;
+}
+
+/* =================================
+   UI
+================================= */
+
+.dh-ui {
+
+    position: absolute;
+
+    left: 18px;
+    right: 18px;
+
+    bottom: 16px;
+
+    display: flex;
+
+    justify-content: space-between;
+
+    color: white;
+
+    font-size: 9px;
+
+    text-shadow:
+        2px 2px #000;
+
+    pointer-events: none;
+
+    z-index: 10;
+}
+
+.dh-ui strong {
+
+    display: block;
+
+    font-size: 14px;
+
+    margin-top: 2px;
+}
+
+/* =================================
+   SCREENS
+================================= */
+
+.dh-screen {
+
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    text-align: center;
+
+    background:
+        rgba(0,0,0,.18);
+
+    z-index: 20;
+
+    color: white;
+
+    text-shadow:
+        3px 3px #000;
+}
+
+.dh-title {
+
+    font-size: 32px;
+
+    line-height: .85;
+
+    font-weight: bold;
+
+    letter-spacing: 2px;
+}
+
+.dh-start-text {
+
+    margin-top: 25px;
+
+    font-size: 12px;
+
+    animation: dhBlink .8s steps(1) infinite;
+}
+
+@keyframes dhBlink {
+
+    50% {
+        opacity: 0;
+    }
+}
+
+/* =================================
+   GAME OVER
+================================= */
+
+#dhGameOver {
+
+    display: none;
+
+    background:
+        rgba(0,0,0,.35);
+}
+
+.dh-final {
+
+    margin-top: 20px;
+
+    font-size: 10px;
+}
+
+#dhRestart {
+
+    margin-top: 18px;
+
+    border: 3px solid #111;
+
+    background: #e8e8e8;
+
+    color: #111;
+
+    padding: 8px 14px;
+
+    font-family: inherit;
+
+    font-size: 10px;
+
+    font-weight: bold;
+
+    cursor: pointer;
+
+    box-shadow:
+        3px 3px #111;
+}
+
+#dhRestart:active {
+
+    transform:
+        translate(2px, 2px);
+
+    box-shadow:
+        1px 1px #111;
+}
+
+</style>
+
+<script>
+
+(function () {
+
+    "use strict";
+
+    /* =================================
+       ELEMENTS
+    ================================= */
+
+    const game =
+        document.getElementById("duckHuntGame");
+
+    const canvas =
+        document.getElementById("duckHuntCanvas");
+
+    const ctx =
+        canvas.getContext("2d");
+
+    const scoreElement =
+        document.getElementById("dhScore");
+
+    const shotsElement =
+        document.getElementById("dhShots");
+
+    const startScreen =
+        document.getElementById("dhStartScreen");
+
+    const gameOverScreen =
+        document.getElementById("dhGameOver");
+
+    const finalScore =
+        document.getElementById("dhFinalScore");
+
+    const restartButton =
+        document.getElementById("dhRestart");
+
+
+    /* =================================
+       CANVAS
+    ================================= */
+
+    let W = 300;
+    let H = 300;
+
+    function resizeCanvas() {
+
+        const rect =
+            game.getBoundingClientRect();
+
+        const dpr =
+            Math.min(window.devicePixelRatio || 1, 2);
+
+        W = rect.width;
+        H = rect.height;
+
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+
+        canvas.style.width = W + "px";
+        canvas.style.height = H + "px";
+
+        ctx.setTransform(
+            dpr,
+            0,
+            0,
+            dpr,
+            0,
+            0
+        );
+    }
+
+    resizeCanvas();
+
+    window.addEventListener(
+        "resize",
+        resizeCanvas
+    );
+
+
+    /* =================================
+       GAME STATE
+    ================================= */
+
+    let running = false;
+
+    let score = 0;
+
+    let shots = 3;
+
+    let duck = null;
+
+    let animationFrame = null;
+
+    let dog = {
+        x: W / 2,
+        y: H - 25,
+        timer: 0,
+        visible: false
+    };
+
+
+    /* =================================
+       DUCK
+    ================================= */
+
+    function createDuck() {
+
+        const direction =
+            Math.random() > .5
+                ? 1
+                : -1;
+
+        duck = {
+
+            x:
+                direction === 1
+                    ? -30
+                    : W + 30,
+
+            y:
+                70 +
+                Math.random() *
+                Math.max(30, H - 160),
+
+            vx:
+                direction *
+                (1.3 + Math.random() * 1.2),
+
+            vy:
+                (Math.random() - .5) *
+                1.2,
+
+            wing: 0,
+
+            alive: true,
+
+            falling: false,
+
+            fallSpeed: 0
+
+        };
+
+    }
+
+
+    /* =================================
+       DRAW BACKGROUND
+    ================================= */
+
+    function drawBackground() {
+
+        /*
+         * Sky
+         */
+
+        ctx.fillStyle = "#70c850";
+
+        ctx.fillRect(
+            0,
+            0,
+            W,
+            H
+        );
+
+        /*
+         * Pixel clouds
+         */
+
+        ctx.fillStyle =
+            "rgba(255,255,255,.35)";
+
+        drawCloud(
+            45,
+            65,
+            1
+        );
+
+        drawCloud(
+            W - 55,
+            100,
+            .7
+        );
+
+        /*
+         * Grass
+         */
+
+        ctx.fillStyle = "#4d9f38";
+
+        ctx.fillRect(
+            0,
+            H - 65,
+            W,
+            65
+        );
+
+        /*
+         * Grass pixels
+         */
+
+        ctx.fillStyle = "#35752b";
+
+        for (
+            let x = 0;
+            x < W;
+            x += 8
+        ) {
+
+            const height =
+                3 + Math.random() * 7;
+
+            ctx.fillRect(
+                x,
+                H - 65,
+                3,
+                height
+            );
+        }
+
+        /*
+         * Bushes
+         */
+
+        ctx.fillStyle = "#286b25";
+
+        for (
+            let x = -10;
+            x < W + 20;
+            x += 30
+        ) {
+
+            ctx.fillRect(
+                x,
+                H - 73,
+                22,
+                12
+            );
+
+            ctx.fillRect(
+                x + 6,
+                H - 80,
+                15,
+                18
+            );
+        }
+    }
+
+
+    /* =================================
+       CLOUD
+    ================================= */
+
+    function drawCloud(
+        x,
+        y,
+        scale
+    ) {
+
+        ctx.fillRect(
+            x,
+            y,
+            45 * scale,
+            7 * scale
+        );
+
+        ctx.fillRect(
+            x + 8 * scale,
+            y - 6 * scale,
+            20 * scale,
+            10 * scale
+        );
+
+        ctx.fillRect(
+            x + 20 * scale,
+            y - 10 * scale,
+            18 * scale,
+            14 * scale
+        );
+    }
+
+
+    /* =================================
+       DRAW DUCK
+    ================================= */
+
+    function drawDuck() {
+
+        if (!duck || !duck.alive)
+            return;
+
+        ctx.save();
+
+        ctx.translate(
+            Math.round(duck.x),
+            Math.round(duck.y)
+        );
+
+        /*
+         * Flip duck based on direction
+         */
+
+        if (duck.vx < 0) {
+
+            ctx.scale(
+                -1,
+                1
+            );
+        }
+
+        /*
+         * Wing animation
+         */
+
+        const wingUp =
+            Math.sin(duck.wing) > 0;
+
+        /*
+         * Body
+         */
+
+        ctx.fillStyle = "#5b351d";
+
+        ctx.fillRect(
+            -13,
+            -3,
+            25,
+            16
+        );
+
+        ctx.fillRect(
+            -18,
+            2,
+            32,
+            8
+        );
+
+        /*
+         * Neck
+         */
+
+        ctx.fillStyle = "#20752b";
+
+        ctx.fillRect(
+            7,
+            -13,
+            10,
+            16
+        );
+
+        /*
+         * Head
+
+         */
+
+        ctx.fillRect(
+            10,
+            -19,
+            15,
+            13
+        );
+
+        /*
+         * Eye
+         */
+
+        ctx.fillStyle = "#fff";
+
+        ctx.fillRect(
+            19,
+            -16,
+            4,
+            4
+        );
+
+        ctx.fillStyle = "#000";
+
+        ctx.fillRect(
+            21,
+            -16,
+            2,
+            2
+        );
+
+        /*
+         * Beak
+         */
+
+        ctx.fillStyle = "#e49a2e";
+
+        ctx.fillRect(
+            24,
+            -12,
+            9,
+            5
+        );
+
+        /*
+         * Wing
+         */
+
+        ctx.fillStyle = "#70421f";
+
+        if (wingUp) {
+
+            ctx.fillRect(
+                -9,
+                -18,
+                10,
+                18
+            );
+
+            ctx.fillRect(
+                -15,
+                -23,
+                10,
+                12
+            );
+
+        } else {
+
+            ctx.fillRect(
+                -9,
+                6,
+                10,
+                17
+            );
+
+            ctx.fillRect(
+                -15,
+                13,
+                10,
+                10
+            );
+        }
+
+        /*
+         * Tail
+
+         */
+
+        ctx.fillStyle = "#70421f";
+
+        ctx.fillRect(
+            -23,
+            -8,
+            9,
+            8
+        );
+
+        ctx.fillRect(
+            -29,
+            -13,
+            9,
+            7
+        );
+
+        ctx.restore();
+    }
+
+
+    /* =================================
+       UPDATE DUCK
+    ================================= */
+
+    function updateDuck() {
+
+        if (!duck)
+            return;
+
+        if (duck.falling) {
+
+            duck.fallSpeed += .25;
+
+            duck.y += duck.fallSpeed;
+
+            duck.wing += .1;
+
+            if (
+                duck.y >
+                H + 30
+            ) {
+
+                createDuck();
+            }
+
+            return;
+        }
+
+        duck.x += duck.vx;
+
+        duck.y += duck.vy;
+
+        duck.wing += .35;
+
+        /*
+         * Slight vertical movement
+         */
+
+        duck.vy +=
+            (Math.random() - .5) *
+            .08;
+
+        duck.vy =
+            Math.max(
+                -1.5,
+                Math.min(
+                    duck.vy,
+                    1.5
+                )
+            );
+
+        /*
+         * Duck escaped
+         */
+
+        if (
+            duck.x < -50 ||
+            duck.x > W + 50
+        ) {
+
+            shots = 0;
+
+            updateUI();
+
+            endGame();
+
+            return;
+        }
+    }
+
+
+    /* =================================
+       SHOOT
+    ================================= */
+
+    function shoot(event) {
+
+        if (!running)
+            return;
+
+        /*
+         * Don't shoot when
+         * clicking restart
+         */
+
+        if (
+            event.target ===
+            restartButton
+        )
+            return;
+
+        const rect =
+            canvas.getBoundingClientRect();
+
+        const x =
+            event.clientX -
+            rect.left;
+
+        const y =
+            event.clientY -
+            rect.top;
+
+        shots--;
+
+        /*
+         * Check duck hit
+         */
+
+        if (
+            duck &&
+            duck.alive &&
+            !duck.falling
+        ) {
+
+            const dx =
+                x - duck.x;
+
+            const dy =
+                y - duck.y;
+
+            const distance =
+                Math.sqrt(
+                    dx * dx +
+                    dy * dy
+                );
+
+            if (
+                distance < 28
+            ) {
+
+                duckHit();
+
+            }
+        }
+
+        updateUI();
+
+        /*
+         * No shots left
+         */
+
+        if (
+            shots <= 0 &&
+            (!duck || !duck.falling)
+        ) {
+
+            setTimeout(
+                endGame,
+                500
+            );
+        }
+    }
+
+
+    /* =================================
+       DUCK HIT
+    ================================= */
+
+    function duckHit() {
+
+        score += 100;
+
+        scoreElement.textContent =
+            String(score).padStart(
+                5,
+                "0"
+            );
+
+        duck.alive = true;
+
+        duck.falling = true;
+
+        duck.vx = 0;
+
+        duck.vy = 0;
+
+        duck.fallSpeed = 0;
+
+        /*
+         * Show dog after hit
+         */
+
+        dog.visible = true;
+
+        dog.timer = 0;
+    }
+
+
+    /* =================================
+       DRAW DOG
+    ================================= */
+
+    function drawDog() {
+
+        if (!dog.visible)
+            return;
+
+        dog.timer++;
+
+        /*
+         * Dog comes from bottom
+         */
+
+        const rise =
+            Math.min(
+                1,
+                dog.timer / 25
+            );
+
+        const y =
+            H + 20 -
+            rise * 55;
+
+        const x =
+            W / 2;
+
+        ctx.save();
+
+        ctx.translate(
+            x,
+            y
+        );
+
+        /*
+         * Body
+         */
+
+        ctx.fillStyle =
+            "#a86f38";
+
+        ctx.fillRect(
+            -18,
+            -12,
+            36,
+            22
+        );
+
+        /*
+         * Head
+         */
+
+        ctx.fillRect(
+            -12,
+            -28,
+            24,
+            18
+        );
+
+        /*
+         * Ears
+         */
+
+        ctx.fillRect(
+            -19,
+            -29,
+            9,
+            14
+        );
+
+        ctx.fillRect(
+            10,
+            -29,
+            9,
+            14
+        );
+
+        /*
+         * Eyes
+
+         */
+
+        ctx.fillStyle =
+            "#000";
+
+        ctx.fillRect(
+            -7,
+            -23,
+            4,
+            4
+        );
+
+        ctx.fillRect(
+            5,
+            -23,
+            4,
+            4
+        );
+
+        /*
+         * Nose
+
+         */
+
+        ctx.fillRect(
+            -3,
+            -13,
+            7,
+            5
+        );
+
+        /*
+         * Smile
+
+         */
+
+        ctx.fillRect(
+            -7,
+            -8,
+            15,
+            3
+        );
+
+        ctx.restore();
+
+        /*
+         * Hide after animation
+         */
+
+        if (
+            dog.timer > 80
+        ) {
+
+            dog.visible = false;
+        }
+    }
+
+
+    /* =================================
+       UI
+    ================================= */
+
+    function updateUI() {
+
+        scoreElement.textContent =
+            String(score).padStart(
+                5,
+                "0"
+            );
+
+        shotsElement.textContent =
+            shots;
+    }
+
+
+    /* =================================
+       GAME LOOP
+    ================================= */
+
+    function gameLoop() {
+
+        if (!running)
+            return;
+
+        ctx.clearRect(
+            0,
+            0,
+            W,
+            H
+        );
+
+        drawBackground();
+
+        updateDuck();
+
+        drawDuck();
+
+        drawDog();
+
+        animationFrame =
+            requestAnimationFrame(
+                gameLoop
+            );
+    }
+
+
+    /* =================================
+       START
+    ================================= */
+
+    function startGame() {
+
+        cancelAnimationFrame(
+            animationFrame
+        );
+
+        score = 0;
+
+        shots = 3;
+
+        dog.visible = false;
+
+        updateUI();
+
+        createDuck();
+
+        running = true;
+
+        startScreen.style.display =
+            "none";
+
+        gameOverScreen.style.display =
+            "none";
+
+        gameLoop();
+    }
+
+
+    /* =================================
+       GAME OVER
+    ================================= */
+
+    function endGame() {
+
+        if (!running)
+            return;
+
+        running = false;
+
+        cancelAnimationFrame(
+            animationFrame
+        );
+
+        finalScore.textContent =
+            String(score).padStart(
+                5,
+                "0"
+            );
+
+        gameOverScreen.style.display =
+            "flex";
+    }
+
+
+    /* =================================
+       EVENTS
+    ================================= */
+
+    game.addEventListener(
+        "pointerdown",
+        function (event) {
+
+            event.preventDefault();
+
+            if (
+                event.target ===
+                restartButton
+            )
+                return;
+
+            if (!running) {
+
+                if (
+                    event.target ===
+                    startScreen
+                ) {
+
+                    startGame();
+                }
+
+                return;
+            }
+
+            shoot(event);
+        },
+        {
+            passive: false
+        }
+    );
+
+
+    restartButton.addEventListener(
+        "click",
+        function (event) {
+
+            event.stopPropagation();
+
+            startGame();
+        }
+    );
+
+
+    /*
+     * Initial drawing
+     */
+
+    drawBackground();
+
+})();
+
+</script>
